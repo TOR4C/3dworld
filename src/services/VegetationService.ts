@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { hash2D, mulberry32 } from '../core/MathNoise';
-import { SETTLEMENT_ZONES, TerrainService, WATER_LEVEL } from './TerrainService';
+import { EAST_COAST_CORRIDOR, LOWLAND_URBAN_BOUNDS, SETTLEMENT_ZONES, TerrainService, WATER_LEVEL } from './TerrainService';
 import { TextureService } from './TextureService';
 
 export class VegetationService {
@@ -14,6 +14,14 @@ export class VegetationService {
   private broadTrunkGeo: THREE.BufferGeometry;
   private broadCrownGeo: THREE.BufferGeometry;
   private broadCrownMat: THREE.MeshStandardMaterial;
+
+  public readonly palmTrunkGeo: THREE.BufferGeometry;
+  public readonly palmCrownGeo: THREE.BufferGeometry;
+  public readonly palmCrownMat: THREE.MeshStandardMaterial;
+
+  public readonly shadeTrunkGeo: THREE.BufferGeometry;
+  public readonly shadeCrownGeo: THREE.BufferGeometry;
+  public readonly shadeCrownMat: THREE.MeshStandardMaterial;
 
   private bushGeo: THREE.BufferGeometry;
   private bushMat: THREE.MeshStandardMaterial;
@@ -47,6 +55,26 @@ export class VegetationService {
     this.broadCrownGeo = this.buildMergedBroadCrown();
     this.broadCrownMat = new THREE.MeshStandardMaterial({
       color: 0x3b7233,
+      roughness: 0.84,
+      metalness: 0.02,
+    });
+
+    // 2b. Coastal Palm Tree (Palem / Kelapa)
+    this.palmTrunkGeo = new THREE.CylinderGeometry(0.14, 0.28, 6.2, 6);
+    this.palmTrunkGeo.translate(0, 3.1, 0);
+    this.palmCrownGeo = this.buildMergedPalmCrown();
+    this.palmCrownMat = new THREE.MeshStandardMaterial({
+      color: 0x3d8b37,
+      roughness: 0.8,
+      metalness: 0.02,
+    });
+
+    // 2c. Umbrella Shade Tree (Trembesi / Flamboyan)
+    this.shadeTrunkGeo = new THREE.CylinderGeometry(0.24, 0.45, 3.4, 7);
+    this.shadeTrunkGeo.translate(0, 1.7, 0);
+    this.shadeCrownGeo = this.buildMergedShadeCrown();
+    this.shadeCrownMat = new THREE.MeshStandardMaterial({
+      color: 0x2f6b32,
       roughness: 0.84,
       metalness: 0.02,
     });
@@ -132,7 +160,49 @@ export class VegetationService {
     return this.mergeGeometries([s1, s2, s3]);
   }
 
+  private buildMergedPalmCrown(): THREE.BufferGeometry {
+    const fronds: THREE.BufferGeometry[] = [];
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      const leaf = new THREE.BoxGeometry(0.45, 0.08, 2.5);
+      leaf.rotateX(0.32);
+      leaf.translate(0, 6.0, 1.15);
+      leaf.rotateY(a);
+      fronds.push(leaf);
+    }
+    return this.mergeGeometries(fronds);
+  }
+
+  private buildMergedShadeCrown(): THREE.BufferGeometry {
+    const c1 = new THREE.IcosahedronGeometry(2.6, 1);
+    c1.scale(1.35, 0.52, 1.35);
+    c1.translate(0, 4.1, 0);
+    const c2 = new THREE.IcosahedronGeometry(1.7, 1);
+    c2.scale(1.2, 0.55, 1.2);
+    c2.translate(1.2, 3.7, 0.7);
+    const c3 = new THREE.IcosahedronGeometry(1.6, 1);
+    c3.scale(1.2, 0.55, 1.2);
+    c3.translate(-1.1, 3.8, -0.6);
+    return this.mergeGeometries([c1, c2, c3]);
+  }
+
   private isInsideSettlement(x: number, z: number): boolean {
+    if (
+      x >= LOWLAND_URBAN_BOUNDS.minX - 6 &&
+      x <= LOWLAND_URBAN_BOUNDS.maxX + 6 &&
+      z >= LOWLAND_URBAN_BOUNDS.minZ - 6 &&
+      z <= LOWLAND_URBAN_BOUNDS.maxZ + 6
+    ) {
+      return true;
+    }
+    if (
+      x >= EAST_COAST_CORRIDOR.minX - 6 &&
+      x <= EAST_COAST_CORRIDOR.maxX + 6 &&
+      z >= EAST_COAST_CORRIDOR.minZ - 4 &&
+      z <= EAST_COAST_CORRIDOR.maxZ + 4
+    ) {
+      return true;
+    }
     for (let i = 0; i < SETTLEMENT_ZONES.length; i++) {
       const zPad = SETTLEMENT_ZONES[i];
       if (Math.hypot(x - zPad.x, z - zPad.z) < zPad.radius + 4) {
@@ -140,6 +210,33 @@ export class VegetationService {
       }
     }
     return false;
+  }
+
+  createOrnamentalTree(type: 'palm' | 'shade' | 'pine' | 'broad'): THREE.Group {
+    const g = new THREE.Group();
+    let trunkGeo = this.pineTrunkGeo;
+    let crownGeo = this.pineCrownGeo;
+    let crownMat = this.pineCrownMat;
+    if (type === 'palm') {
+      trunkGeo = this.palmTrunkGeo;
+      crownGeo = this.palmCrownGeo;
+      crownMat = this.palmCrownMat;
+    } else if (type === 'shade') {
+      trunkGeo = this.shadeTrunkGeo;
+      crownGeo = this.shadeCrownGeo;
+      crownMat = this.shadeCrownMat;
+    } else if (type === 'broad') {
+      trunkGeo = this.broadTrunkGeo;
+      crownGeo = this.broadCrownGeo;
+      crownMat = this.broadCrownMat;
+    }
+    const trunk = new THREE.Mesh(trunkGeo, this.pineTrunkMat);
+    const crown = new THREE.Mesh(crownGeo, crownMat);
+    trunk.castShadow = true;
+    crown.castShadow = true;
+    crown.receiveShadow = true;
+    g.add(trunk, crown);
+    return g;
   }
 
   populateChunk(cx: number, cz: number, chunkSize: number, targetGroup: THREE.Group): void {
@@ -150,6 +247,8 @@ export class VegetationService {
 
     const pineTransforms: { x: number; y: number; z: number; s: number; rot: number; tint: number }[] = [];
     const broadTransforms: { x: number; y: number; z: number; s: number; rot: number; tint: number }[] = [];
+    const palmTransforms: { x: number; y: number; z: number; s: number; rot: number }[] = [];
+    const shadeTransforms: { x: number; y: number; z: number; s: number; rot: number }[] = [];
     const bushTransforms: { x: number; y: number; z: number; s: number; rot: number }[] = [];
     const rockTransforms: { x: number; y: number; z: number; s: number; rot: number }[] = [];
 
@@ -170,7 +269,11 @@ export class VegetationService {
       const rot = rng() * Math.PI * 2;
       const tint = 0.85 + rng() * 0.3;
 
-      if (wy > 16 || rng() < 0.62) {
+      if (wy < 6.5 && rng() < 0.35) {
+        palmTransforms.push({ x: wx, y: wy - 0.15, z: wz, s, rot });
+      } else if (wy < 18 && rng() < 0.25) {
+        shadeTransforms.push({ x: wx, y: wy - 0.15, z: wz, s: s * 0.9, rot });
+      } else if (wy > 16 || rng() < 0.62) {
         pineTransforms.push({ x: wx, y: wy - 0.15, z: wz, s, rot, tint });
       } else {
         broadTransforms.push({ x: wx, y: wy - 0.15, z: wz, s, rot, tint });
@@ -228,6 +331,45 @@ export class VegetationService {
       targetGroup.add(trunks, crowns);
     }
 
+    if (palmTransforms.length > 0) {
+      const trunks = new THREE.InstancedMesh(this.palmTrunkGeo, this.pineTrunkMat, palmTransforms.length);
+      const crowns = new THREE.InstancedMesh(this.palmCrownGeo, this.palmCrownMat, palmTransforms.length);
+      trunks.castShadow = true;
+      crowns.castShadow = true;
+      for (let i = 0; i < palmTransforms.length; i++) {
+        const t = palmTransforms[i];
+        dummy.position.set(t.x, t.y, t.z);
+        dummy.rotation.set(0, t.rot, 0);
+        dummy.scale.setScalar(t.s);
+        dummy.updateMatrix();
+        trunks.setMatrixAt(i, dummy.matrix);
+        crowns.setMatrixAt(i, dummy.matrix);
+      }
+      trunks.instanceMatrix.needsUpdate = true;
+      crowns.instanceMatrix.needsUpdate = true;
+      targetGroup.add(trunks, crowns);
+    }
+
+    if (shadeTransforms.length > 0) {
+      const trunks = new THREE.InstancedMesh(this.shadeTrunkGeo, this.pineTrunkMat, shadeTransforms.length);
+      const crowns = new THREE.InstancedMesh(this.shadeCrownGeo, this.shadeCrownMat, shadeTransforms.length);
+      trunks.castShadow = true;
+      crowns.castShadow = true;
+      crowns.receiveShadow = true;
+      for (let i = 0; i < shadeTransforms.length; i++) {
+        const t = shadeTransforms[i];
+        dummy.position.set(t.x, t.y, t.z);
+        dummy.rotation.set(0, t.rot, 0);
+        dummy.scale.setScalar(t.s);
+        dummy.updateMatrix();
+        trunks.setMatrixAt(i, dummy.matrix);
+        crowns.setMatrixAt(i, dummy.matrix);
+      }
+      trunks.instanceMatrix.needsUpdate = true;
+      crowns.instanceMatrix.needsUpdate = true;
+      targetGroup.add(trunks, crowns);
+    }
+
     if (broadTransforms.length > 0) {
       const trunks = new THREE.InstancedMesh(this.broadTrunkGeo, this.pineTrunkMat, broadTransforms.length);
       const crowns = new THREE.InstancedMesh(this.broadCrownGeo, this.broadCrownMat, broadTransforms.length);
@@ -249,6 +391,45 @@ export class VegetationService {
       trunks.instanceMatrix.needsUpdate = true;
       crowns.instanceMatrix.needsUpdate = true;
       if (crowns.instanceColor) crowns.instanceColor.needsUpdate = true;
+      targetGroup.add(trunks, crowns);
+    }
+
+    if (palmTransforms.length > 0) {
+      const trunks = new THREE.InstancedMesh(this.palmTrunkGeo, this.pineTrunkMat, palmTransforms.length);
+      const crowns = new THREE.InstancedMesh(this.palmCrownGeo, this.palmCrownMat, palmTransforms.length);
+      trunks.castShadow = true;
+      crowns.castShadow = true;
+      for (let i = 0; i < palmTransforms.length; i++) {
+        const t = palmTransforms[i];
+        dummy.position.set(t.x, t.y, t.z);
+        dummy.rotation.set(0, t.rot, 0);
+        dummy.scale.setScalar(t.s);
+        dummy.updateMatrix();
+        trunks.setMatrixAt(i, dummy.matrix);
+        crowns.setMatrixAt(i, dummy.matrix);
+      }
+      trunks.instanceMatrix.needsUpdate = true;
+      crowns.instanceMatrix.needsUpdate = true;
+      targetGroup.add(trunks, crowns);
+    }
+
+    if (shadeTransforms.length > 0) {
+      const trunks = new THREE.InstancedMesh(this.shadeTrunkGeo, this.pineTrunkMat, shadeTransforms.length);
+      const crowns = new THREE.InstancedMesh(this.shadeCrownGeo, this.shadeCrownMat, shadeTransforms.length);
+      trunks.castShadow = true;
+      crowns.castShadow = true;
+      crowns.receiveShadow = true;
+      for (let i = 0; i < shadeTransforms.length; i++) {
+        const t = shadeTransforms[i];
+        dummy.position.set(t.x, t.y, t.z);
+        dummy.rotation.set(0, t.rot, 0);
+        dummy.scale.setScalar(t.s);
+        dummy.updateMatrix();
+        trunks.setMatrixAt(i, dummy.matrix);
+        crowns.setMatrixAt(i, dummy.matrix);
+      }
+      trunks.instanceMatrix.needsUpdate = true;
+      crowns.instanceMatrix.needsUpdate = true;
       targetGroup.add(trunks, crowns);
     }
 

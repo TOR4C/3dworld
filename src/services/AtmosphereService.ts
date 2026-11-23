@@ -3,6 +3,7 @@ import { UpdatableService } from '../core/Engine';
 import { EventBus } from '../core/EventBus';
 import { clamp, mulberry32 } from '../core/MathNoise';
 import { SettlementService } from './SettlementService';
+import { UrbanService } from './UrbanService';
 import { WaterService } from './WaterService';
 
 export class AtmosphereService implements UpdatableService {
@@ -10,6 +11,7 @@ export class AtmosphereService implements UpdatableService {
   private camera: THREE.Camera;
   private water: WaterService;
   private settlement: SettlementService;
+  private urban?: UrbanService;
 
   public timeOfDay = 0.38; // Start at bright morning (~09:08)
   public cycleSpeed = 0.0045; // ~220 seconds per full day/night cycle
@@ -18,6 +20,7 @@ export class AtmosphereService implements UpdatableService {
   public weatherDimFactor = 1.0;
 
   private sunLight: THREE.DirectionalLight;
+  private moonLight: THREE.DirectionalLight;
   private hemiLight: THREE.HemisphereLight;
   private skyMat: THREE.ShaderMaterial;
   private skyMesh: THREE.Mesh;
@@ -58,7 +61,20 @@ export class AtmosphereService implements UpdatableService {
     scene.add(this.sunLight);
     scene.add(this.sunLight.target);
 
-    // Procedural Sky Dome
+    this.moonLight = new THREE.DirectionalLight(0xa5c8ff, 0.0);
+    this.moonLight.castShadow = true;
+    this.moonLight.shadow.mapSize.set(1024, 1024);
+    this.moonLight.shadow.camera.near = 10;
+    this.moonLight.shadow.camera.far = 420;
+    this.moonLight.shadow.camera.left = -d;
+    this.moonLight.shadow.camera.right = d;
+    this.moonLight.shadow.camera.top = d;
+    this.moonLight.shadow.camera.bottom = -d;
+    this.moonLight.shadow.bias = -0.0005;
+    scene.add(this.moonLight);
+    scene.add(this.moonLight.target);
+
+    // Procedural Sky Dome (Sun + Moon)
     this.skyMat = new THREE.ShaderMaterial({
       side: THREE.BackSide,
       depthWrite: false,
@@ -67,6 +83,7 @@ export class AtmosphereService implements UpdatableService {
         uHorizonColor: { value: new THREE.Color(0x93c5fd) },
         uSunDir: { value: new THREE.Vector3(0, 1, 0) },
         uSunColor: { value: new THREE.Color(0xfff3c4) },
+        uNightFactor: { value: 0.0 },
       },
       vertexShader: `
         varying vec3 vWorldDir;
@@ -81,14 +98,26 @@ export class AtmosphereService implements UpdatableService {
         uniform vec3 uHorizonColor;
         uniform vec3 uSunDir;
         uniform vec3 uSunColor;
+        uniform float uNightFactor;
         varying vec3 vWorldDir;
         void main() {
-          float h = clamp(vWorldDir.y, 0.0, 1.0);
+          vec3 dir = normalize(vWorldDir);
+          float h = clamp(dir.y, 0.0, 1.0);
           vec3 col = mix(uHorizonColor, uTopColor, pow(h, 0.58));
-          float sunDot = max(dot(normalize(vWorldDir), normalize(uSunDir)), 0.0);
-          float halo = pow(sunDot, 14.0) * 0.32;
-          float disc = smoothstep(0.9985, 0.9996, sunDot) * 1.4;
+
+          vec3 sunD = normalize(uSunDir);
+          float sunDot = max(dot(dir, sunD), 0.0);
+          float halo = pow(sunDot, 14.0) * 0.32 * (1.0 - uNightFactor);
+          float disc = smoothstep(0.9985, 0.9996, sunDot) * 1.4 * (1.0 - uNightFactor);
           col += uSunColor * (halo + disc);
+
+          // Moon disc & silvery halo opposite sun
+          vec3 moonD = -sunD;
+          float moonDot = max(dot(dir, moonD), 0.0);
+          float moonHalo = pow(moonDot, 22.0) * 0.25 * uNightFactor;
+          float moonDisc = smoothstep(0.9988, 0.9995, moonDot) * 1.15 * uNightFactor;
+          col += vec3(0.76, 0.86, 1.0) * (moonHalo + moonDisc);
+
           gl_FragColor = vec4(col, 1.0);
         }
       `,
@@ -126,6 +155,10 @@ export class AtmosphereService implements UpdatableService {
     bus.on('time:toggle-pause', () => {
       this.paused = !this.paused;
     });
+  }
+
+  setUrbanService(urban: UrbanService): void {
+    this.urban = urban;
   }
 
   update(dt: number): void {
@@ -173,28 +206,38 @@ export class AtmosphereService implements UpdatableService {
     this.skyMat.uniforms.uTopColor.value.copy(this.skyTop);
     this.skyMat.uniforms.uHorizonColor.value.copy(this.skyHorizon);
     this.skyMat.uniforms.uSunDir.value.copy(this.sunDir);
+    this.skyMat.uniforms.uNightFactor.value = nightFactor;
     this.starsMat.opacity = clamp(nightFactor * 0.9 * this.weatherDimFactor, 0, 0.9);
 
-    // Sun shadow follows camera XZ
+    // Sun & Moon shadow follow camera XZ
     const cx = Math.round(this.camera.position.x / 10) * 10;
     const cz = Math.round(this.camera.position.z / 10) * 10;
-    const lightDir = sunY > -0.05 ? this.sunDir : this.sunDir.clone().negate();
-    this.sunLight.position.set(cx, 0, cz).addScaledVector(lightDir, 180);
+    const moonDir = this.sunDir.clone().negate();
+
+    this.sunLight.position.set(cx, 0, cz).addScaledVector(this.sunDir, 180);
     this.sunLight.target.position.set(cx, 0, cz);
+    this.moonLight.position.set(cx, 0, cz).addScaledVector(moonDir, 180);
+    this.moonLight.target.position.set(cx, 0, cz);
 
     const sunColor = new THREE.Color(0xfff4d6).lerp(new THREE.Color(0xff8c42), sunsetFactor * 0.8);
     if (sunY <= -0.05) {
-      this.sunLight.color.setHex(0x8fb3e8);
-      this.sunLight.intensity = 0.35 * nightFactor;
+      this.sunLight.intensity = 0;
+      this.sunLight.castShadow = false;
+      this.moonLight.castShadow = true;
+      this.moonLight.intensity = 0.82 * nightFactor * (0.55 + 0.45 * this.weatherDimFactor);
     } else {
+      this.sunLight.castShadow = true;
       this.sunLight.color.copy(sunColor);
       this.sunLight.intensity = (0.3 + dayFactor * 2.1) * this.weatherDimFactor;
+      this.moonLight.castShadow = false;
+      this.moonLight.intensity = 0.0;
     }
 
-    this.hemiLight.intensity = (0.28 + dayFactor * 0.58) * (0.65 + 0.35 * this.weatherDimFactor);
-    this.hemiLight.color.copy(this.skyTop).lerp(new THREE.Color(0xffffff), 0.35);
+    this.hemiLight.intensity = (0.38 + dayFactor * 0.52) * (0.65 + 0.35 * this.weatherDimFactor);
+    this.hemiLight.color.copy(this.skyTop).lerp(new THREE.Color(0xcbd5e1), 0.35);
 
     this.water.setTint(this.skyHorizon, dayFactor);
     this.settlement.setNightFactor(nightFactor);
+    this.urban?.setNightFactor(nightFactor);
   }
 }

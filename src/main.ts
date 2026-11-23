@@ -9,6 +9,7 @@ import { HudService } from './services/HudService';
 import { SettlementService } from './services/SettlementService';
 import { TerrainService } from './services/TerrainService';
 import { TextureService } from './services/TextureService';
+import { UrbanService } from './services/UrbanService';
 import { VegetationService } from './services/VegetationService';
 import { WaterService } from './services/WaterService';
 import { WeatherService } from './services/WeatherService';
@@ -26,7 +27,9 @@ function bootstrap(): void {
   const chunks = new ChunkService(engine.scene, engine.camera, terrain, textures, vegetation);
   const water = new WaterService(engine.scene, engine.camera, textures);
   const settlement = new SettlementService(engine.scene, terrain, textures);
+  const urban = new UrbanService(engine.scene, textures, vegetation);
   const atmosphere = new AtmosphereService(engine.scene, engine.camera, water, settlement, bus);
+  atmosphere.setUrbanService(urban);
   const weather = new WeatherService(engine.scene, engine.camera, atmosphere, bus);
   const fauna = new FaunaService(engine.scene, atmosphere);
   const controls = new ControlsService(engine.camera, canvas, terrain);
@@ -40,6 +43,7 @@ function bootstrap(): void {
   engine.registerService(chunks);
   engine.registerService(water);
   engine.registerService(settlement);
+  engine.registerService(urban);
   engine.registerService(atmosphere);
   engine.registerService(weather);
   engine.registerService(fauna);

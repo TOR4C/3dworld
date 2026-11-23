@@ -26,6 +26,22 @@ export const SETTLEMENT_ZONES: FlatZone[] = [
   { x: 118, z: 12, radius: 14, falloff: 16, targetHeight: 1.6 },
 ];
 
+export const LOWLAND_URBAN_BOUNDS = {
+  minX: -115,
+  maxX: 295,
+  minZ: 276,
+  maxZ: 425,
+  elevation: 2.2,
+};
+
+export const EAST_COAST_CORRIDOR = {
+  minX: 280,
+  maxX: 318,
+  minZ: 36,
+  maxZ: 325,
+  elevation: 2.4,
+};
+
 export class TerrainService {
   getHeight(x: number, z: number): number {
     // Domain warp for organic shorelines
@@ -90,6 +106,26 @@ export class TerrainService {
       }
     }
 
+    // 6. Lakeshore Lowland Plain (Hotel, Perumahan, Parkiran, Camping, Jalan Aspal)
+    const lb = LOWLAND_URBAN_BOUNDS;
+    const dx = Math.max(lb.minX - x, 0, x - lb.maxX);
+    const dz = Math.max(lb.minZ - z, 0, z - lb.maxZ);
+    const boxDist = Math.hypot(dx, dz);
+    if (boxDist < 36) {
+      const lw = 1 - smoothstep(0, 36, boxDist);
+      h = lerp(h, lb.elevation, lw);
+    }
+
+    // 7. Eastern Coastal Road Corridor (connecting Boulevard to Pasar & Desa)
+    const ec = EAST_COAST_CORRIDOR;
+    const ecx = Math.max(ec.minX - x, 0, x - ec.maxX);
+    const ecz = Math.max(ec.minZ - z, 0, z - ec.maxZ);
+    const ecDist = Math.hypot(ecx, ecz);
+    if (ecDist < 26) {
+      const ew = 1 - smoothstep(0, 26, ecDist);
+      h = lerp(h, ec.elevation, ew);
+    }
+
     return h;
   }
 
@@ -103,6 +139,25 @@ export class TerrainService {
   getBiomeLabel(x: number, z: number): string {
     const h = this.getHeight(x, z);
     const dOrigin = Math.hypot(x, z);
+    if (x >= -108 && x <= -20 && z >= 274 && z <= 312) {
+      return 'Area Camping Tepi Danau';
+    }
+    if (
+      x >= LOWLAND_URBAN_BOUNDS.minX - 10 &&
+      x <= LOWLAND_URBAN_BOUNDS.maxX + 10 &&
+      z >= LOWLAND_URBAN_BOUNDS.minZ - 10 &&
+      z <= LOWLAND_URBAN_BOUNDS.maxZ + 10
+    ) {
+      return 'Kawasan Pesisir & Hotel';
+    }
+    if (
+      x >= EAST_COAST_CORRIDOR.minX - 8 &&
+      x <= EAST_COAST_CORRIDOR.maxX + 8 &&
+      z >= EAST_COAST_CORRIDOR.minZ &&
+      z <= EAST_COAST_CORRIDOR.maxZ
+    ) {
+      return 'Jalan Lingkar Pesisir Timur';
+    }
     if (Math.hypot(x - 332, z - 26) < 42) return 'Pasar Pinggir Danau';
     if (Math.hypot(x - 330, z + 30) < 55) return 'Desa Rumah Bolon';
     if (Math.hypot(x + 12, z + 10) < 155 && h > WATER_LEVEL) return 'Pulau Samosir';

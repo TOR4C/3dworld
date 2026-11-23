@@ -12,6 +12,9 @@ export class TextureService {
   public readonly fabricGoldTexture: THREE.CanvasTexture;
   public readonly waterNormalTexture: THREE.CanvasTexture;
   public readonly terrainDetailTexture: THREE.CanvasTexture;
+  public readonly asphaltTexture: THREE.CanvasTexture;
+  public readonly sidewalkTexture: THREE.CanvasTexture;
+  public readonly roofTileTexture: THREE.CanvasTexture;
 
   constructor() {
     this.barkTexture = this.createBarkTexture();
@@ -24,6 +27,9 @@ export class TextureService {
     this.fabricGoldTexture = this.createFabricTexture('#d97706', '#b45309', 303);
     this.waterNormalTexture = this.createWaterNormalTexture();
     this.terrainDetailTexture = this.createTerrainDetailTexture();
+    this.asphaltTexture = this.createAsphaltTexture();
+    this.sidewalkTexture = this.createSidewalkTexture();
+    this.roofTileTexture = this.createRoofTileTexture();
   }
 
   private makeCanvas(size = 256): [HTMLCanvasElement, CanvasRenderingContext2D] {
@@ -185,6 +191,64 @@ export class TextureService {
     return this.wrapTexture(canvas, 12, 12, false);
   }
 
+  private createAsphaltTexture(): THREE.CanvasTexture {
+    const [canvas, ctx] = this.makeCanvas(256);
+    const rng = mulberry32(808);
+    ctx.fillStyle = '#2d3138';
+    ctx.fillRect(0, 0, 256, 256);
+    for (let i = 0; i < 3200; i++) {
+      const x = rng() * 256;
+      const y = rng() * 256;
+      const v = Math.floor(34 + rng() * 34);
+      ctx.fillStyle = `rgb(${v},${v + 2},${v + 5})`;
+      ctx.fillRect(x, y, 1.5, 1.5);
+    }
+    return this.wrapTexture(canvas, 4, 24);
+  }
+
+  private createSidewalkTexture(): THREE.CanvasTexture {
+    const [canvas, ctx] = this.makeCanvas(256);
+    const rng = mulberry32(909);
+    ctx.fillStyle = '#b6bcc4';
+    ctx.fillRect(0, 0, 256, 256);
+    const step = 32;
+    ctx.strokeStyle = 'rgba(60, 68, 78, 0.35)';
+    ctx.lineWidth = 2;
+    for (let x = 0; x <= 256; x += step) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, 256);
+      ctx.stroke();
+    }
+    for (let y = 0; y <= 256; y += step) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(256, y);
+      ctx.stroke();
+    }
+    for (let i = 0; i < 600; i++) {
+      ctx.fillStyle = rng() > 0.5 ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)';
+      ctx.fillRect(rng() * 256, rng() * 256, 2, 2);
+    }
+    return this.wrapTexture(canvas, 2, 24);
+  }
+
+  private createRoofTileTexture(): THREE.CanvasTexture {
+    const [canvas, ctx] = this.makeCanvas(256);
+    const rng = mulberry32(616);
+    ctx.fillStyle = '#9a3412';
+    ctx.fillRect(0, 0, 256, 256);
+    for (let y = 0; y < 256; y += 16) {
+      ctx.fillStyle = 'rgba(30, 10, 4, 0.25)';
+      ctx.fillRect(0, y, 256, 3);
+      for (let x = 0; x < 256; x += 24) {
+        ctx.fillStyle = rng() > 0.5 ? 'rgba(255, 190, 140, 0.08)' : 'rgba(40, 12, 5, 0.12)';
+        ctx.fillRect(x, y, 22, 14);
+      }
+    }
+    return this.wrapTexture(canvas, 4, 4);
+  }
+
   dispose(): void {
     this.barkTexture.dispose();
     this.woodPlankTexture.dispose();
@@ -196,5 +260,8 @@ export class TextureService {
     this.fabricGoldTexture.dispose();
     this.waterNormalTexture.dispose();
     this.terrainDetailTexture.dispose();
+    this.asphaltTexture.dispose();
+    this.sidewalkTexture.dispose();
+    this.roofTileTexture.dispose();
   }
 }
