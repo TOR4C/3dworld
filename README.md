@@ -14,17 +14,22 @@ Game simulasi lingkungan alam 3D berbasis browser (WebGL2) dengan kamera terbang
 ## Struktur Arsitektur (`src/`)
 - `src/core/`: `Engine.ts` (WebGL2 renderer & loop), `EventBus.ts`, `MathNoise.ts`
 - `src/services/`:
-  - `TerrainService.ts`: Heightmap kaldera Danau Toba, Pulau Samosir, dan dataran tinggi prosedural tak terbatas
+  - `TerrainService.ts`: Heightmap kaldera Danau, Pulau, dan dataran tinggi prosedural tak terbatas
   - `ChunkService.ts`: Streaming & disposal chunk medan
   - `TextureService.ts`: Generator tekstur prosedural berbasis Canvas
-  - `VegetationService.ts`: Pohon pinus Toba, pohon tropis, semak, dan batu (*InstancedMesh*)
-  - `SettlementService.ts`: Rumah Bolon, Pasar pinggir danau dengan objek 3D, dermaga, perahu, dan gazebo Samosir
+  - `VegetationService.ts`: Pohon pinus, pohon tropis, semak, dan batu (*InstancedMesh*)
+  - `SettlementService.ts`: Rumah tradisional, Pasar pinggir danau dengan objek 3D, dermaga, perahu, dan gazebo.
   - `WaterService.ts`: Permukaan air dengan normal map animasi
   - `AtmosphereService.ts`: Siklus siang–malam, sky dome shader, bintang, dan pencahayaan
   - `WeatherService.ts`: Cuaca cerah, kabut, dan hujan partikel 3D
   - `FaunaService.ts`: Burung terbang, itik/unggas air, dan kunang-kunang/kupu-kupu
   - `ControlsService.ts`: Kontrol desktop & mobile multi-pointerId + kolisi
-  - `HudService.ts`: Antarmuka HUD, kontrol cuaca/waktu, dan tombol sentuh
+  - `HudService.ts`: Antarmuka HUD, kontrol cuaca/waktu, dan tombol sentuh.
+ 
+## Aturan Keras:
+- dilarang menggunakan aset eksternal
+- semua aset dibuat dengan kode (prosedural)
+- penambahan aset, perubahan aset selalu dicatat di ASSETS.md
 
 ## Build & Menjalankan
 ```bash
