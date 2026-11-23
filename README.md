@@ -1,4 +1,4 @@
-# 3D World — Simulasi Lingkungan Alam Prosedural (Danau Toba)
+# 3D World — Simulasi Lingkungan Alam Prosedural
 
 Game simulasi lingkungan alam 3D berbasis browser (WebGL2) dengan kamera terbang bebas (*free view*) tanpa avatar. Dunia dibuat secara prosedural dan tak terbatas melalui *chunk streaming*, diawali dengan lanskap kaldera dan pulau.
 
