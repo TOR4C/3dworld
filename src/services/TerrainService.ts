@@ -1,6 +1,9 @@
 import { clamp, fbm2D, lerp, ridged2D, smoothstep } from '../core/MathNoise';
 
 export const WATER_LEVEL = 0;
+export const BASE_ALTITUDE_MDPL = 905; // Lake Toba surface elevation (m above sea level)
+export const ORIGIN_LAT = 2.6167;      // Lake Toba center latitude (North)
+export const ORIGIN_LON = 98.8333;     // Lake Toba center longitude (East)
 
 export interface FlatZone {
   x: number;
@@ -27,7 +30,7 @@ export const SETTLEMENT_ZONES: FlatZone[] = [
 ];
 
 export const LOWLAND_URBAN_BOUNDS = {
-  minX: -115,
+  minX: -275,
   maxX: 295,
   minZ: 276,
   maxZ: 425,
@@ -39,7 +42,7 @@ export const EAST_COAST_CORRIDOR = {
   maxX: 318,
   minZ: 36,
   maxZ: 325,
-  elevation: 2.4,
+  elevation: 2.2,
 };
 
 export class TerrainService {
@@ -136,9 +139,19 @@ export class TerrainService {
     return Math.hypot(hx, hz) / (2 * eps);
   }
 
+  getGeoCoords(x: number, y: number, z: number): { lat: number; lon: number; altMdpl: number } {
+    const lat = ORIGIN_LAT - z / 111320;
+    const lon = ORIGIN_LON + x / 111204;
+    const altMdpl = BASE_ALTITUDE_MDPL + y;
+    return { lat, lon, altMdpl };
+  }
+
   getBiomeLabel(x: number, z: number): string {
     const h = this.getHeight(x, z);
     const dOrigin = Math.hypot(x, z);
+    if (x >= -275 && x <= -120 && z >= 274 && z <= 425) {
+      return 'Taman Wisata Air & Rekreasi';
+    }
     if (x >= -108 && x <= -20 && z >= 274 && z <= 312) {
       return 'Area Camping Tepi Danau';
     }

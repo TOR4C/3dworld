@@ -22,6 +22,7 @@ export class ControlsService implements UpdatableService {
   public readonly boostMultiplier = 2.8;
   public isPointerLocked = false;
   public currentSpeed = 0;
+  public cinematicOverride = false;
 
   private velocity = new THREE.Vector3();
   private keys = new Set<string>();
@@ -148,6 +149,11 @@ export class ControlsService implements UpdatableService {
   }
 
   update(dt: number): void {
+    if (this.cinematicOverride) {
+      this.velocity.set(0, 0, 0);
+      this.currentSpeed = 0;
+      return;
+    }
     this.applyRotation();
 
     // Forward vector includes pitch as required!

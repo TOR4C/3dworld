@@ -267,3 +267,53 @@ body {
     display: none;
   }
 }
+
+/* Hide HUD mode */
+#hud-root.hud-hidden .hud-top,
+#hud-root.hud-hidden .crosshair,
+#hud-root.hud-hidden .desktop-hint,
+#hud-root.hud-hidden .touch-ui {
+  display: none !important;
+}
+
+.hud-restore-btn {
+  position: absolute;
+  top: max(12px, env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+  display: none;
+  pointer-events: auto;
+  opacity: 0.52;
+  transition: opacity 0.2s;
+}
+
+.hud-restore-btn:hover {
+  opacity: 1;
+}
+
+#hud-root.hud-hidden .hud-restore-btn {
+  display: inline-flex;
+}
+
+.cinematic-banner {
+  position: absolute;
+  bottom: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(12, 18, 28, 0.72);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  border-radius: 999px;
+  padding: 7px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #e0f2fe;
+  letter-spacing: 0.02em;
+  display: none;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.cinematic-banner.visible {
+  display: block;
+}

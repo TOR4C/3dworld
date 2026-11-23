@@ -4,11 +4,16 @@ export interface WorldEvents {
   'weather:change': WeatherType;
   'time:set': number; // normalized 0..1 (0 = midnight, 0.25 = sunrise, 0.5 = noon, 0.75 = sunset)
   'time:toggle-pause': void;
+  'cinematic:toggle': void;
+  'cinematic:status': { active: boolean; label: string };
   'telemetry:update': {
     fps: number;
     x: number;
     y: number;
     z: number;
+    lat: number;
+    lon: number;
+    altMdpl: number;
     speed: number;
     baseSpeed: number;
     timeOfDay: number;

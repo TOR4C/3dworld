@@ -3,6 +3,7 @@ import { Engine } from './core/Engine';
 import { EventBus } from './core/EventBus';
 import { AtmosphereService } from './services/AtmosphereService';
 import { ChunkService } from './services/ChunkService';
+import { CinematicService } from './services/CinematicService';
 import { ControlsService } from './services/ControlsService';
 import { FaunaService } from './services/FaunaService';
 import { HudService } from './services/HudService';
@@ -25,14 +26,15 @@ function bootstrap(): void {
   const terrain = new TerrainService();
   const vegetation = new VegetationService(terrain, textures);
   const chunks = new ChunkService(engine.scene, engine.camera, terrain, textures, vegetation);
-  const water = new WaterService(engine.scene, engine.camera, textures);
+  const water = new WaterService(engine.scene, engine.camera, textures, terrain);
   const settlement = new SettlementService(engine.scene, terrain, textures);
   const urban = new UrbanService(engine.scene, textures, vegetation);
   const atmosphere = new AtmosphereService(engine.scene, engine.camera, water, settlement, bus);
   atmosphere.setUrbanService(urban);
-  const weather = new WeatherService(engine.scene, engine.camera, atmosphere, bus);
+  const weather = new WeatherService(engine.scene, engine.camera, atmosphere, bus, vegetation);
   const fauna = new FaunaService(engine.scene, atmosphere);
   const controls = new ControlsService(engine.camera, canvas, terrain);
+  const cinematic = new CinematicService(engine.camera, controls, terrain, bus);
   new HudService(hudRoot, bus, controls);
 
   // Build initial chunks around Danau Toba before first frame
@@ -40,7 +42,9 @@ function bootstrap(): void {
 
   // Register update order
   engine.registerService(controls);
+  engine.registerService(cinematic);
   engine.registerService(chunks);
+  engine.registerService(vegetation);
   engine.registerService(water);
   engine.registerService(settlement);
   engine.registerService(urban);
@@ -55,11 +59,15 @@ function bootstrap(): void {
       if (telemetryTimer >= 0.25) {
         telemetryTimer = 0;
         const p = engine.camera.position;
+        const geo = terrain.getGeoCoords(p.x, p.y, p.z);
         bus.emit('telemetry:update', {
           fps: engine.currentFps,
           x: p.x,
           y: p.y,
           z: p.z,
+          lat: geo.lat,
+          lon: geo.lon,
+          altMdpl: geo.altMdpl,
           speed: controls.currentSpeed,
           baseSpeed: controls.baseSpeed,
           timeOfDay: atmosphere.timeOfDay,

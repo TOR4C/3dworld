@@ -3,11 +3,13 @@ import { UpdatableService } from '../core/Engine';
 import { EventBus, WeatherType } from '../core/EventBus';
 import { lerp } from '../core/MathNoise';
 import { AtmosphereService } from './AtmosphereService';
+import { VegetationService } from './VegetationService';
 
 export class WeatherService implements UpdatableService {
   public currentWeather: WeatherType = 'clear';
 
   private atmosphere: AtmosphereService;
+  private vegetation?: VegetationService;
   private camera: THREE.Camera;
   private rainLines: THREE.LineSegments;
   private rainMat: THREE.LineBasicMaterial;
@@ -16,12 +18,21 @@ export class WeatherService implements UpdatableService {
 
   private targetFogMult = 1.0;
   private targetDim = 1.0;
+  private targetWind = 1.0;
+  private currentWind = 1.0;
   private rainOpacity = 0.0;
   private autoTimer = 0;
 
-  constructor(scene: THREE.Scene, camera: THREE.Camera, atmosphere: AtmosphereService, bus: EventBus) {
+  constructor(
+    scene: THREE.Scene,
+    camera: THREE.Camera,
+    atmosphere: AtmosphereService,
+    bus: EventBus,
+    vegetation?: VegetationService
+  ) {
     this.camera = camera;
     this.atmosphere = atmosphere;
+    this.vegetation = vegetation;
 
     // 3D Rain streaks
     this.rainPositions = new Float32Array(this.dropCount * 6);
@@ -51,12 +62,15 @@ export class WeatherService implements UpdatableService {
     if (w === 'clear') {
       this.targetFogMult = 1.0;
       this.targetDim = 1.0;
+      this.targetWind = 1.0;
     } else if (w === 'mist') {
       this.targetFogMult = 2.85;
       this.targetDim = 0.82;
+      this.targetWind = 1.35;
     } else {
       this.targetFogMult = 2.4;
       this.targetDim = 0.58;
+      this.targetWind = 2.25;
     }
   }
 
@@ -86,6 +100,8 @@ export class WeatherService implements UpdatableService {
     const t = 1 - Math.exp(-1.5 * dt);
     this.atmosphere.weatherFogMultiplier = lerp(this.atmosphere.weatherFogMultiplier, this.targetFogMult, t);
     this.atmosphere.weatherDimFactor = lerp(this.atmosphere.weatherDimFactor, this.targetDim, t);
+    this.currentWind = lerp(this.currentWind, this.targetWind, t);
+    this.vegetation?.setWindStrength(this.currentWind);
 
     const targetRain = this.currentWeather === 'rain' ? 0.52 : 0;
     this.rainOpacity = lerp(this.rainOpacity, targetRain, t);

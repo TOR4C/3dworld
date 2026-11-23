@@ -19,6 +19,7 @@ export class HudService {
   private upPointerId: number | null = null;
   private downPointerId: number | null = null;
   private touchEnabled = false;
+  private hudHidden = false;
 
   constructor(root: HTMLElement, bus: EventBus, controls: ControlsService) {
     this.root = root;
@@ -53,9 +54,14 @@ export class HudService {
           <button class="hud-btn" data-time="0.73">Senja</button>
           <button class="hud-btn" data-time="0.02">Malam</button>
           <button class="hud-btn" id="btn-pause-time">Jeda</button>
+          <button class="hud-btn" id="btn-auto-view" title="Tur Sinematik Otomatis (V)">Auto View</button>
           <button class="hud-btn" id="btn-toggle-touch">Touch</button>
+          <button class="hud-btn" id="btn-hide-hud" title="Sembunyikan HUD (H)">Hide HUD</button>
         </div>
       </div>
+
+      <button class="hud-card hud-btn hud-restore-btn" id="btn-show-hud">Tampilkan HUD (H)</button>
+      <div class="cinematic-banner" id="cinematic-banner">Tur Sinematik</div>
 
       <div class="crosshair" id="hud-crosshair"></div>
       <div class="desktop-hint" id="hud-hint">
@@ -122,6 +128,40 @@ export class HudService {
       toggleTouchBtn.classList.toggle('active', this.touchEnabled);
     });
 
+    const toggleHud = () => {
+      this.hudHidden = !this.hudHidden;
+      this.root.classList.toggle('hud-hidden', this.hudHidden);
+    };
+    this.root.querySelector<HTMLButtonElement>('#btn-hide-hud')!.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleHud();
+    });
+    this.root.querySelector<HTMLButtonElement>('#btn-show-hud')!.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleHud();
+    });
+    const autoViewBtn = this.root.querySelector<HTMLButtonElement>('#btn-auto-view')!;
+    const bannerEl = this.root.querySelector<HTMLElement>('#cinematic-banner')!;
+    autoViewBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.bus.emit('cinematic:toggle', undefined);
+    });
+    this.bus.on('cinematic:status', (st) => {
+      autoViewBtn.classList.toggle('active', st.active);
+      bannerEl.classList.toggle('visible', st.active);
+      if (st.active) {
+        bannerEl.textContent = `Tur Sinematik • ${st.label}`;
+      }
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'KeyH' && !e.repeat) {
+        toggleHud();
+      } else if (e.code === 'KeyV' && !e.repeat) {
+        this.bus.emit('cinematic:toggle', undefined);
+      }
+    });
+
     this.controls.onLockChange((locked) => {
       this.crosshairEl.classList.toggle('visible', locked);
       this.hintEl.classList.toggle('hidden', locked);
@@ -139,9 +179,12 @@ export class HudService {
         .toString()
         .padStart(2, '0');
 
+      const latStr = `${Math.abs(t.lat).toFixed(4)}°${t.lat >= 0 ? 'N' : 'S'}`;
+      const lonStr = `${Math.abs(t.lon).toFixed(4)}°${t.lon >= 0 ? 'E' : 'W'}`;
+
       this.statsEl.textContent =
-        `${t.fps} FPS | ${hh}:${mm} | Alt ${t.y.toFixed(1)}m | ` +
-        `Vel ${t.speed.toFixed(1)} (Base ${t.baseSpeed.toFixed(0)}) m/s | Chunks ${t.chunksLoaded}`;
+        `${t.fps} FPS | ${hh}:${mm} | ${latStr}, ${lonStr} | Alt ${t.altMdpl.toFixed(0)}m mdpl (+${t.y.toFixed(1)}m) | ` +
+        `Vel ${t.speed.toFixed(1)} m/s | Chunks ${t.chunksLoaded}`;
 
       this.setActiveWeather(t.weather);
     });

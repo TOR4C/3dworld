@@ -1,10 +1,17 @@
 import * as THREE from 'three';
+import { UpdatableService } from '../core/Engine';
 import { hash2D, mulberry32 } from '../core/MathNoise';
 import { EAST_COAST_CORRIDOR, LOWLAND_URBAN_BOUNDS, SETTLEMENT_ZONES, TerrainService, WATER_LEVEL } from './TerrainService';
 import { TextureService } from './TextureService';
 
-export class VegetationService {
+export class VegetationService implements UpdatableService {
   private terrain: TerrainService;
+
+  private windUniforms = {
+    uTime: { value: 0 },
+    uWindDir: { value: new THREE.Vector2(0.85, 0.52).normalize() },
+    uWindStrength: { value: 1.0 },
+  };
 
   private pineTrunkGeo: THREE.BufferGeometry;
   private pineCrownGeo: THREE.BufferGeometry;
@@ -25,6 +32,9 @@ export class VegetationService {
 
   private bushGeo: THREE.BufferGeometry;
   private bushMat: THREE.MeshStandardMaterial;
+
+  private grassGeo: THREE.BufferGeometry;
+  private grassMat: THREE.MeshStandardMaterial;
 
   private rockGeo: THREE.BufferGeometry;
   private rockMat: THREE.MeshStandardMaterial;
@@ -47,6 +57,7 @@ export class VegetationService {
       roughness: 0.85,
       metalness: 0.02,
     });
+    this.applyWindShader(this.pineCrownMat, 0.042);
 
     // 2. Tropical Broadleaf Tree
     this.broadTrunkGeo = new THREE.CylinderGeometry(0.22, 0.42, 3.2, 6);
@@ -58,6 +69,7 @@ export class VegetationService {
       roughness: 0.84,
       metalness: 0.02,
     });
+    this.applyWindShader(this.broadCrownMat, 0.055);
 
     // 2b. Coastal Palm Tree (Palem / Kelapa)
     this.palmTrunkGeo = new THREE.CylinderGeometry(0.14, 0.28, 6.2, 6);
@@ -68,6 +80,7 @@ export class VegetationService {
       roughness: 0.8,
       metalness: 0.02,
     });
+    this.applyWindShader(this.palmCrownMat, 0.085);
 
     // 2c. Umbrella Shade Tree (Trembesi / Flamboyan)
     this.shadeTrunkGeo = new THREE.CylinderGeometry(0.24, 0.45, 3.4, 7);
@@ -78,6 +91,7 @@ export class VegetationService {
       roughness: 0.84,
       metalness: 0.02,
     });
+    this.applyWindShader(this.shadeCrownMat, 0.05);
 
     // 3. Bush / Shrub
     this.bushGeo = new THREE.DodecahedronGeometry(0.75, 1);
@@ -87,6 +101,16 @@ export class VegetationService {
       color: 0x457d38,
       roughness: 0.88,
     });
+    this.applyWindShader(this.bushMat, 0.14);
+
+    // 3b. 3D Grass Tufts (Tanah Berumput)
+    this.grassGeo = this.buildGrassTuftGeometry();
+    this.grassMat = new THREE.MeshStandardMaterial({
+      color: 0x56943d,
+      roughness: 0.88,
+      side: THREE.DoubleSide,
+    });
+    this.applyWindShader(this.grassMat, 0.34);
 
     // 4. Boulder / Rock
     this.rockGeo = new THREE.DodecahedronGeometry(0.9, 0);
@@ -96,6 +120,61 @@ export class VegetationService {
       roughness: 0.92,
       metalness: 0.05,
     });
+  }
+
+  setWindStrength(strength: number): void {
+    this.windUniforms.uWindStrength.value = strength;
+  }
+
+  update(_dt: number, elapsed: number): void {
+    this.windUniforms.uTime.value = elapsed;
+  }
+
+  private applyWindShader(mat: THREE.MeshStandardMaterial, swayScale: number): void {
+    mat.onBeforeCompile = (shader) => {
+      shader.uniforms.uTime = this.windUniforms.uTime;
+      shader.uniforms.uWindDir = this.windUniforms.uWindDir;
+      shader.uniforms.uWindStrength = this.windUniforms.uWindStrength;
+      shader.uniforms.uSwayScale = { value: swayScale };
+
+      shader.vertexShader = shader.vertexShader
+        .replace(
+          '#include <common>',
+          `#include <common>
+          uniform float uTime;
+          uniform vec2 uWindDir;
+          uniform float uWindStrength;
+          uniform float uSwayScale;`
+        )
+        .replace(
+          '#include <begin_vertex>',
+          `#include <begin_vertex>
+          #ifdef USE_INSTANCING
+            vec3 windAnchor = (modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+          #else
+            vec3 windAnchor = (modelMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+          #endif
+          float hFactor = max(0.0, transformed.y);
+          float windPhase = dot(windAnchor.xz, uWindDir) * 0.16 + uTime * 2.15;
+          float windGust = sin(windPhase) * 0.65 + sin(windPhase * 2.3 + windAnchor.x * 0.12) * 0.35;
+          vec2 windOffset = uWindDir * windGust * uWindStrength * uSwayScale * hFactor;
+          transformed.x += windOffset.x;
+          transformed.z += windOffset.y;`
+        );
+    };
+  }
+
+  private buildGrassTuftGeometry(): THREE.BufferGeometry {
+    const blades: THREE.BufferGeometry[] = [];
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI + (i % 2) * 0.25;
+      const blade = new THREE.ConeGeometry(0.11, 0.72, 3);
+      blade.translate(0, 0.36, 0);
+      blade.rotateZ((i % 2 === 0 ? 1 : -1) * 0.18);
+      blade.rotateY(a);
+      blades.push(blade);
+    }
+    return this.mergeGeometries(blades);
   }
 
   private mergeGeometries(geos: THREE.BufferGeometry[]): THREE.BufferGeometry {
@@ -250,6 +329,7 @@ export class VegetationService {
     const palmTransforms: { x: number; y: number; z: number; s: number; rot: number }[] = [];
     const shadeTransforms: { x: number; y: number; z: number; s: number; rot: number }[] = [];
     const bushTransforms: { x: number; y: number; z: number; s: number; rot: number }[] = [];
+    const grassTransforms: { x: number; y: number; z: number; s: number; rot: number; tint: number }[] = [];
     const rockTransforms: { x: number; y: number; z: number; s: number; rot: number }[] = [];
 
     // Sample candidate points
@@ -301,6 +381,24 @@ export class VegetationService {
       const slope = this.terrain.getSlope(wx, wz);
       if (slope < 0.25 && wy > WATER_LEVEL + 2.5 && rng() > 0.3) continue;
       rockTransforms.push({ x: wx, y: wy - 0.2, z: wz, s: 0.6 + rng() * 1.4, rot: rng() * Math.PI * 2 });
+    }
+
+    const grassAttempts = 210;
+    for (let i = 0; i < grassAttempts; i++) {
+      const wx = baseX + rng() * chunkSize;
+      const wz = baseZ + rng() * chunkSize;
+      if (this.isInsideSettlement(wx, wz)) continue;
+      const wy = this.terrain.getHeight(wx, wz);
+      if (wy < WATER_LEVEL + 0.9 || wy > 42) continue;
+      if (this.terrain.getSlope(wx, wz) > 0.78) continue;
+      grassTransforms.push({
+        x: wx,
+        y: wy - 0.05,
+        z: wz,
+        s: 0.75 + rng() * 0.9,
+        rot: rng() * Math.PI * 2,
+        tint: 0.8 + rng() * 0.4,
+      });
     }
 
     const dummy = new THREE.Object3D();
@@ -464,5 +562,56 @@ export class VegetationService {
       rocks.instanceMatrix.needsUpdate = true;
       targetGroup.add(rocks);
     }
+
+    if (grassTransforms.length > 0) {
+      const grasses = new THREE.InstancedMesh(this.grassGeo, this.grassMat, grassTransforms.length);
+      grasses.receiveShadow = true;
+      for (let i = 0; i < grassTransforms.length; i++) {
+        const t = grassTransforms[i];
+        dummy.position.set(t.x, t.y, t.z);
+        dummy.rotation.set(0, t.rot, 0);
+        dummy.scale.setScalar(t.s);
+        dummy.updateMatrix();
+        grasses.setMatrixAt(i, dummy.matrix);
+        color.setRGB(0.28 * t.tint, 0.56 * t.tint, 0.22 * t.tint);
+        grasses.setColorAt(i, color);
+      }
+      grasses.instanceMatrix.needsUpdate = true;
+      if (grasses.instanceColor) grasses.instanceColor.needsUpdate = true;
+      targetGroup.add(grasses);
+    }
+  }
+
+  createGrassPatch(
+    count: number,
+    width: number,
+    depth: number,
+    centerX: number,
+    centerZ: number,
+    groundY: number,
+    seed = 777
+  ): THREE.InstancedMesh {
+    const rng = mulberry32(seed);
+    const mesh = new THREE.InstancedMesh(this.grassGeo, this.grassMat, count);
+    mesh.receiveShadow = true;
+    const dummy = new THREE.Object3D();
+    const color = new THREE.Color();
+    for (let i = 0; i < count; i++) {
+      dummy.position.set(
+        centerX + (rng() - 0.5) * width,
+        groundY - 0.03,
+        centerZ + (rng() - 0.5) * depth
+      );
+      dummy.rotation.set(0, rng() * Math.PI * 2, 0);
+      dummy.scale.setScalar(0.65 + rng() * 0.75);
+      dummy.updateMatrix();
+      mesh.setMatrixAt(i, dummy.matrix);
+      const tint = 0.85 + rng() * 0.35;
+      color.setRGB(0.28 * tint, 0.58 * tint, 0.23 * tint);
+      mesh.setColorAt(i, color);
+    }
+    mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    return mesh;
   }
 }

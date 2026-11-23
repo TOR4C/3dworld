@@ -236,7 +236,19 @@ export class AtmosphereService implements UpdatableService {
     this.hemiLight.intensity = (0.38 + dayFactor * 0.52) * (0.65 + 0.35 * this.weatherDimFactor);
     this.hemiLight.color.copy(this.skyTop).lerp(new THREE.Color(0xcbd5e1), 0.35);
 
-    this.water.setTint(this.skyHorizon, dayFactor);
+    const activeLightDir = sunY <= -0.05 ? moonDir : this.sunDir;
+    const activeLightCol = sunY <= -0.05 ? new THREE.Color(0x9bc2ff).multiplyScalar(0.65) : sunColor.clone().multiplyScalar(this.weatherDimFactor);
+    const fogDensity = 0.00115 * this.weatherFogMultiplier;
+
+    this.water.setAtmosphere(
+      activeLightDir,
+      activeLightCol,
+      this.skyTop,
+      this.skyHorizon,
+      this.fogColor,
+      fogDensity,
+      dayFactor
+    );
     this.settlement.setNightFactor(nightFactor);
     this.urban?.setNightFactor(nightFactor);
   }
